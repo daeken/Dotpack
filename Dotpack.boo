@@ -40,10 +40,41 @@ class Dotpack:
 				data[i+2] = (new >> 16) & 0xFF
 				data[i+3] = new >> 24
 	
+	Names as Hash
+	def GetName(name as string) as string:
+		if not Names.ContainsKey(name):
+			i = Names.Count
+			Names[name] = ''
+			while i != 0:
+				Names[name] += cast(char, i & 0xFF).ToString()
+				i >>= 8
+		return Names[name]
+	
+	def StripType(type as TypeDefinition):
+		type.Name = GetName(type.Name)
+		for method as MethodDefinition in type.Methods:
+			method.Name = GetName(method.Name)
+		for field as FieldDefinition in type.Fields:
+			field.Name = GetName(field.Name)
+		for prop as PropertyDefinition in type.Properties:
+			prop.Name = GetName(prop.Name)
+		for evt as EventDefinition in type.Events:
+			evt.Name = GetName(evt.Name)
+		//if type.HasNestedTypes:
+		//	for ntype as TypeDefinition in type.NestedTypes:
+		//		StripType(ntype)
+	
+	def StripNames(asm as AssemblyDefinition):
+		Names = {}
+		for module as ModuleDefinition in asm.Modules:
+			for type as TypeDefinition in module.Types:
+				StripType(type)
+	
 	def CreateStage1(kind as AssemblyKind, stage2Size as int, stage2 as (byte), data2Size as int, data2 as (byte), outfile as string):
 		asm = AssemblyFactory.GetAssembly('Obj/Stage1.Deflate.exe')
 		asm.Kind = kind
 		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 0x200
+		StripNames(asm)
 		
 		stage1 as (byte)
 		AssemblyFactory.SaveAssembly(asm, stage1)
@@ -121,6 +152,7 @@ class Dotpack:
 		for type as TypeDefinition in mod.Types:
 			if type.Name == '_':
 				asm.EntryPoint = type.Methods[0]
+		StripNames(asm)
 		
 		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 1
 		binary as (byte)
