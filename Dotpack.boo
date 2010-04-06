@@ -51,9 +51,12 @@ class Dotpack:
 		return Names[name]
 	
 	def StripType(type as TypeDefinition):
+		type.Namespace = GetName(type.Namespace)
 		type.Name = GetName(type.Name)
 		for method as MethodDefinition in type.Methods:
 			method.Name = GetName(method.Name)
+			for parameter as ParameterDefinition in method.Parameters:
+				parameter.Name = GetName(parameter.Name)
 		for field as FieldDefinition in type.Fields:
 			field.Name = GetName(field.Name)
 		for prop as PropertyDefinition in type.Properties:

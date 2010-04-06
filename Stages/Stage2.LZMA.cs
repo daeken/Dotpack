@@ -7,9 +7,9 @@ namespace SevenZip.Compression.LZ
 	public class OutWindow
 	{
 		byte[] _buffer = null;
-		uint _pos;
+		uint _pos = 0;
 		uint _windowSize = 0;
-		uint _streamPos;
+		uint _streamPos = 0;
 		System.IO.Stream _stream;
 
 		public void Create(uint windowSize)
@@ -20,15 +20,11 @@ namespace SevenZip.Compression.LZ
 				_buffer = new byte[windowSize];
 			}
 			_windowSize = windowSize;
-			_pos = 0;
-			_streamPos = 0;
 		}
 
 		public void Init(System.IO.Stream stream)
 		{
 			_stream = stream;
-			_streamPos = 0;
-			_pos = 0;
 		}
 
 		public void Flush()
@@ -47,8 +43,7 @@ namespace SevenZip.Compression.LZ
 			uint pos = _pos - distance - 1;
 			if (pos >= _windowSize)
 				pos += _windowSize;
-			for (; len > 0; len--)
-			{
+			while(len-- != 0) {
 				if (pos >= _windowSize)
 					pos = 0;
 				_buffer[_pos++] = _buffer[pos++];
@@ -128,7 +123,8 @@ namespace SevenZip.Compression.RangeCoder {
 			if(Prob == 0) Prob = kBitModelTotal >> 1;
 			uint newBound = (uint)(rangeDecoder.Range >> kNumBitModelTotalBits) * (uint)Prob;
 			uint ret = 0;
-			if (rangeDecoder.Code >= newBound) {
+			if (rangeDecoder.Code >= newBound)
+			{
 				rangeDecoder.Code -= newBound;
 				rangeDecoder.Range -= newBound;
 				Prob -= (Prob) >> kNumMoveBits;
@@ -228,10 +224,6 @@ namespace SevenZip.Compression.LZMA
 				else if (Index < 10) Index -= 3;
 				else Index -= 6;
 			}
-			public void UpdateMatch() { Index = (uint)(Index < 7 ? 7 : 10); }
-			public void UpdateRep() { Index = (uint)(Index < 7 ? 8 : 11); }
-			public void UpdateShortRep() { Index = (uint)(Index < 7 ? 9 : 11); }
-			public bool IsCharState() { return Index < 7; }
 		}
 
 		public const int kNumPosSlotBits = 6;
@@ -416,23 +408,18 @@ namespace SevenZip.Compression.LZMA
 			m_PosStateMask = numPosStates - 1;
 		}
 
-		void Init(System.IO.Stream inStream, System.IO.Stream outStream)
+		public void Code(System.IO.Stream inStream, System.IO.Stream outStream,
+			int inSize, int outSize)
 		{
 			m_RangeDecoder.Init(inStream);
 			m_OutWindow.Init(outStream);
-		}
-
-		public void Code(System.IO.Stream inStream, System.IO.Stream outStream,
-			Int64 inSize, Int64 outSize)
-		{
-			Init(inStream, outStream);
 
 			Base.State state = new Base.State();
 			state.Init();
 			uint rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
 
-			UInt64 nowPos64 = 0;
-			UInt64 outSize64 = (UInt64)outSize;
+			uint nowPos64 = 0;
+			uint outSize64 = (uint)outSize;
 			if (nowPos64 < outSize64)
 			{
 				m_IsMatchDecoders[state.Index << Base.kNumPosStatesBitsMax].Decode(m_RangeDecoder);
@@ -451,7 +438,7 @@ namespace SevenZip.Compression.LZMA
 					{
 						byte b;
 						byte prevByte = m_OutWindow.GetByte(0);
-						if (!state.IsCharState())
+						if (state.Index >= 7)
 							b = m_LiteralDecoder.DecodeWithMatchByte(m_RangeDecoder,
 								(uint)nowPos64, prevByte, m_OutWindow.GetByte(rep0));
 						else
@@ -469,7 +456,7 @@ namespace SevenZip.Compression.LZMA
 							{
 								if (m_IsRep0LongDecoders[(state.Index << Base.kNumPosStatesBitsMax) + posState].Decode(m_RangeDecoder) == 0)
 								{
-									state.UpdateShortRep();
+									state.Index = (uint)(state.Index < 7 ? 9 : 11);
 									m_OutWindow.PutByte(m_OutWindow.GetByte(rep0));
 									nowPos64++;
 									continue;
@@ -497,7 +484,7 @@ namespace SevenZip.Compression.LZMA
 								rep0 = distance;
 							}
 							len = m_RepLenDecoder.Decode(m_RangeDecoder, posState) + Base.kMatchMinLen;
-							state.UpdateRep();
+							state.Index = (uint)(state.Index < 7 ? 8 : 11);
 						}
 						else
 						{
@@ -505,7 +492,7 @@ namespace SevenZip.Compression.LZMA
 							rep2 = rep1;
 							rep1 = rep0;
 							len = Base.kMatchMinLen + m_LenDecoder.Decode(m_RangeDecoder, posState);
-							state.UpdateMatch();
+							state.Index = (uint)(state.Index < 7 ? 7 : 10);
 							uint posSlot = m_PosSlotDecoder[Base.GetLenToPosState(len)].Decode(m_RangeDecoder);
 							if (posSlot >= Base.kStartPosModelIndex)
 							{
