@@ -70,6 +70,10 @@ class Dotpack:
 		
 		return size
 	
+	LZMAProperties = (
+			1 << 27, 1, 4, 0, 2, 128, 'bt2', false
+		)
+	
 	def CreateStage2(infile as string, compression as string) as List:
 		asm = AssemblyFactory.GetAssembly(infile)
 		kind = asm.Kind
@@ -99,10 +103,8 @@ class Dotpack:
 					CoderPropID.MatchFinder,
 					CoderPropID.EndMarker
 				)
-			properties = (1 << 27, 1, 4, 0, 2, 128, 'bt2', false)
 			
-			encoder.SetCoderProperties(propIDs, properties)
-			encoder.WriteCoderProperties(msout)
+			encoder.SetCoderProperties(propIDs, LZMAProperties)
 			encoder.Code(msin, msout, -1, -1, null)
 			cdata = msout.ToArray()
 		else:
@@ -123,6 +125,12 @@ class Dotpack:
 		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 1
 		binary as (byte)
 		AssemblyFactory.SaveAssembly(asm, binary)
+		if compression == 'LZMA':
+			ReplaceInt(binary, 0x4AFEBAB0, LZMAProperties[0]) # Dictionary size
+			ReplaceInt(binary, 0x4AFEBAB1, LZMAProperties[3]) # Literal position bits
+			ReplaceInt(binary, 0x4AFEBAB2, LZMAProperties[2]) # Literal context bits
+			ReplaceInt(binary, 0x4AFEBAB3, LZMAProperties[1]) # Position state bits
+		
 		ms = MemoryStream()
 		cs = DeflateStream(ms, CompressionMode.Compress, CompressionLevel.BestCompression)
 		cs.Write(binary, 0, binary.Length)

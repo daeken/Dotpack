@@ -428,9 +428,16 @@ namespace SevenZip.Compression.LZMA
 
 		public Decoder()
 		{
-			m_DictionarySize = 0xFFFFFFFF;
 			for (int i = 0; i < Base.kNumLenToPosStates; i++)
 				m_PosSlotDecoder[i] = new BitTreeDecoder(Base.kNumPosSlotBits);
+			m_DictionarySize = 0x4AFEBAB0;
+			m_OutWindow.Create(Math.Max(m_DictionarySize, (1 << 12)));
+			m_LiteralDecoder.Create(0x4AFEBAB1, 0x4AFEBAB2);
+			uint numPosStates = 0x4AFEBAB3;
+			numPosStates = (uint) 1 << (int) numPosStates;
+			m_LenDecoder.Create(numPosStates);
+			m_RepLenDecoder.Create(numPosStates);
+			m_PosStateMask = numPosStates - 1;
 		}
 
 		void Init(System.IO.Stream inStream, System.IO.Stream outStream)
@@ -459,7 +466,7 @@ namespace SevenZip.Compression.LZMA
 			// m_PosSpecDecoder.Init();
 			for (i = 0; i < Base.kNumFullDistances - Base.kEndPosModelIndex; i++)
 				m_PosDecoders[i].Init();
-
+			
 			m_LenDecoder.Init();
 			m_RepLenDecoder.Init();
 			m_PosAlignDecoder.Init();
@@ -579,41 +586,16 @@ namespace SevenZip.Compression.LZMA
 			}
 			m_OutWindow.Flush();
 		}
-
-		public void SetDecoderProperties(byte[] properties)
-		{
-			int lc = properties[0] % 9;
-			int remainder = properties[0] / 9;
-			int lp = remainder % 5;
-			int pb = remainder / 5;
-			UInt32 dictionarySize = (uint) (
-					properties[1] + 
-					(properties[2] << 8) + 
-					(properties[3] << 16) + 
-					(properties[4] << 24)
-				);
-			m_DictionarySize = dictionarySize;
-			uint blockSize = Math.Max(m_DictionarySize, (1 << 12));
-			m_OutWindow.Create(blockSize);
-			m_LiteralDecoder.Create(lp, lc);
-			uint numPosStates = (uint)1 << pb;
-			m_LenDecoder.Create(numPosStates);
-			m_RepLenDecoder.Create(numPosStates);
-			m_PosStateMask = numPosStates - 1;
-		}
 	}
 }
 
 namespace _ {
 	static class _ {
 		static void S2Main(byte[] a, int s, int l, int d, string[] args) {
-			byte[] p = new byte[5];
-			Array.Copy(a, s, p, 0, 5);
-			MemoryStream i = new MemoryStream(a, s+5, l-5);
+			MemoryStream i = new MemoryStream(a, s, l);
 			MemoryStream o = new MemoryStream();
 			SevenZip.Compression.LZMA.Decoder decoder = new SevenZip.Compression.LZMA.Decoder();
-			decoder.SetDecoderProperties(p);
-			decoder.Code(i, o, l-5, d);
+			decoder.Code(i, o, l, d);
 			Assembly.Load(o.ToArray()).EntryPoint.Invoke(
 					null, 
 					new object[] {
