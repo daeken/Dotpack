@@ -86,12 +86,6 @@ namespace SevenZip.Compression.RangeCoder {
 			Models = new BitDecoder[1 << numBitLevels];
 		}
 
-		public void Init()
-		{
-			for (uint i = 1; i < (1 << NumBitLevels); i++)
-				Models[i].Init();
-		}
-
 		public uint Decode(RangeCoder.Decoder rangeDecoder)
 		{
 			uint m = 1;
@@ -129,10 +123,9 @@ namespace SevenZip.Compression.RangeCoder {
 
 		uint Prob;
 
-		public void Init() { Prob = kBitModelTotal >> 1; }
-
 		public uint Decode(RangeCoder.Decoder rangeDecoder)
 		{
+			if(Prob == 0) Prob = kBitModelTotal >> 1;
 			uint newBound = (uint)(rangeDecoder.Range >> kNumBitModelTotalBits) * (uint)Prob;
 			uint ret = 0;
 			if (rangeDecoder.Code >= newBound) {
@@ -297,18 +290,6 @@ namespace SevenZip.Compression.LZMA
 				m_NumPosStates = numPosStates;
 			}
 
-			public void Init()
-			{
-				m_Choice.Init();
-				for (uint posState = 0; posState < m_NumPosStates; posState++)
-				{
-					m_LowCoder[posState].Init();
-					m_MidCoder[posState].Init();
-				}
-				m_Choice2.Init();
-				m_HighCoder.Init();
-			}
-
 			public uint Decode(RangeCoder.Decoder rangeDecoder, uint posState)
 			{
 				if (m_Choice.Decode(rangeDecoder) == 0)
@@ -333,8 +314,9 @@ namespace SevenZip.Compression.LZMA
 			struct Decoder2
 			{
 				BitDecoder[] m_Decoders;
-				public void Create() { m_Decoders = new BitDecoder[0x300]; }
-				public void Init() { for (int i = 0; i < 0x300; i++) m_Decoders[i].Init(); }
+				public void Create() {
+					m_Decoders = new BitDecoder[0x300];
+				}
 
 				public byte DecodeNormal(RangeCoder.Decoder rangeDecoder)
 				{
@@ -381,15 +363,9 @@ namespace SevenZip.Compression.LZMA
 				m_NumPrevBits = numPrevBits;
 				uint numStates = (uint)1 << (m_NumPrevBits + m_NumPosBits);
 				m_Coders = new Decoder2[numStates];
-				for (uint i = 0; i < numStates; i++)
+				for (uint i = 0; i < numStates; i++) {
 					m_Coders[i].Create();
-			}
-
-			public void Init()
-			{
-				uint numStates = (uint)1 << (m_NumPrevBits + m_NumPosBits);
-				for (uint i = 0; i < numStates; i++)
-					m_Coders[i].Init();
+				}
 			}
 
 			uint GetState(uint pos, byte prevByte)
@@ -444,32 +420,6 @@ namespace SevenZip.Compression.LZMA
 		{
 			m_RangeDecoder.Init(inStream);
 			m_OutWindow.Init(outStream);
-
-			uint i;
-			for (i = 0; i < Base.kNumStates; i++)
-			{
-				for (uint j = 0; j <= m_PosStateMask; j++)
-				{
-					uint index = (i << Base.kNumPosStatesBitsMax) + j;
-					m_IsMatchDecoders[index].Init();
-					m_IsRep0LongDecoders[index].Init();
-				}
-				m_IsRepDecoders[i].Init();
-				m_IsRepG0Decoders[i].Init();
-				m_IsRepG1Decoders[i].Init();
-				m_IsRepG2Decoders[i].Init();
-			}
-
-			m_LiteralDecoder.Init();
-			for (i = 0; i < Base.kNumLenToPosStates; i++)
-				m_PosSlotDecoder[i].Init();
-			// m_PosSpecDecoder.Init();
-			for (i = 0; i < Base.kNumFullDistances - Base.kEndPosModelIndex; i++)
-				m_PosDecoders[i].Init();
-			
-			m_LenDecoder.Init();
-			m_RepLenDecoder.Init();
-			m_PosAlignDecoder.Init();
 		}
 
 		public void Code(System.IO.Stream inStream, System.IO.Stream outStream,
