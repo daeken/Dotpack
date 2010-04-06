@@ -14,11 +14,7 @@ namespace SevenZip.Compression.LZ
 
 		public void Create(uint windowSize)
 		{
-			if (_windowSize != windowSize)
-			{
-				// System.GC.Collect();
-				_buffer = new byte[windowSize];
-			}
+			_buffer = new byte[windowSize];
 			_windowSize = windowSize;
 		}
 
@@ -30,8 +26,6 @@ namespace SevenZip.Compression.LZ
 		public void Flush()
 		{
 			uint size = _pos - _streamPos;
-			if (size == 0)
-				return;
 			_stream.Write(_buffer, (int)_streamPos, (int)size);
 			if (_pos >= _windowSize)
 				_pos = 0;
