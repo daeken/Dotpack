@@ -166,9 +166,13 @@ class Dotpack:
 			ReplaceInt(binary, 0x4AFEBAB2, LZMAProperties[2]) # Literal context bits
 			ReplaceInt(binary, 0x4AFEBAB3, LZMAProperties[1]) # Position state bits
 		
+		s2size = binary.Length
+		while binary[s2size-1] == 0:
+			s2size -= 1
+		
 		ms = MemoryStream()
 		cs = DeflateStream(ms, CompressionMode.Compress, CompressionLevel.BestCompression)
-		cs.Write(binary, 0, binary.Length)
+		cs.Write(binary, 0, s2size)
 		cs.Close()
 		bdata = ms.ToArray()
 		sizes[2] = binary.Length
