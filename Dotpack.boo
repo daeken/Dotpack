@@ -19,12 +19,10 @@ class Dotpack:
 			compression = 'LZMA'
 		
 		infile, outfile = args
-		kind, sizes as (int), stage2, data2 = CreateStage2(infile, compression)
-		print 'Stage 2 unpacker: {0} -> {1}' % (sizes[2], sizes[3])
+		name, kind, hasPArams, sizes as (int), stage2, data2 = CreateStage2(infile, compression)
 		print 'Real assembly: {0} -> {1}' % (sizes[0], sizes[1])
-		s1size = CreateStage1(kind, sizes[2], stage2, sizes[0], data2, outfile)
+		overhead = CreateStage1(name, kind, hasParams, stage2, sizes[0], data2, outfile)
 		
-		overhead = s1size + sizes[3]
 		total = overhead + sizes[1]
 		print 'Total size: {0} -> {1} ({2}%)' % (sizes[0], total, (cast(single, total) / sizes[0]) * 100)
 		print 'Total unpacker overhead: {0} ({1}%)' % (overhead, (cast(single, overhead) / total) * 100)
@@ -73,8 +71,13 @@ class Dotpack:
 			for type as TypeDefinition in module.Types:
 				StripType(type)
 	
-	def CreateStage1(kind as AssemblyKind, stage2Size as int, stage2 as (byte), data2Size as int, data2 as (byte), outfile as string):
-		asm = AssemblyFactory.GetAssembly('Obj/Stage1.Deflate.exe')
+	def CreateStage1(name as string, kind as AssemblyKind, hasParams as bool, stage2 as (byte), data2Size as int, data2 as (byte), outfile as string):
+		if hasParams:
+			p = '.Params'
+		else:
+			p = ''
+		asm = AssemblyFactory.GetAssembly('Obj/Stage1.Deflate' + p + '.exe')
+		asm.Name.Name = name
 		asm.Kind = kind
 		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 0x200
 		StripNames(asm)
@@ -84,25 +87,36 @@ class Dotpack:
 		size = stage1.Length
 		while stage1[size-1] == 0:
 			size -= 1
-		print 'Stage 1 size: {0}' % (size, )
+		print 'Stage 1 size: {0} -> {1}' % (stage1.Length, size)
+		s2size = stage2.Length
+		#while stage2[s2size-1] == 0:
+		#	s2size -= 1
+		start = 0
+		while stage1[start] == stage2[start]:
+			start += 1
 		
-		ReplaceInt(stage1, 0x5EADBEE0, stage2Size)
+		ms = MemoryStream()
+		cs = DeflateStream(ms, CompressionMode.Compress, CompressionLevel.BestCompression)
+		cs.Write(stage2, start, s2size-start)
+		cs.Close()
+		orig = stage2.Length
+		stage2 = ms.ToArray()
+		print 'Stage 2 size: {0} -> {1}' % (orig, stage2.Length)
+		
+		ReplaceInt(stage1, 0x5EADBEE0, s2size)
 		ReplaceInt(stage1, 0x5EADBEE1, data2Size)
 		ReplaceInt(stage1, 0x5EADBEE2, size)
 		ReplaceInt(stage1, 0x5EADBEE3, stage2.Length)
 		ReplaceInt(stage1, 0x5EADBEE4, data2.Length)
+		ReplaceInt(stage1, 0x5EADBEE5, start)
 		
 		fp = File.Create(outfile)
 		fp.Write(stage1, 0, size)
-		fp.Flush()
-		
-		fp.Position = size
-		bw = BinaryWriter(fp)
-		bw.Write(stage2)
-		bw.Write(data2)
+		fp.Write(stage2, 0, stage2.Length)
+		fp.Write(data2, 0, data2.Length)
 		fp.Close()
 		
-		return size
+		return size + stage2.Length
 	
 	LZMAProperties = (
 			1 << 27, 1, 4, 0, 2, 128, 'bt2', false
@@ -111,9 +125,10 @@ class Dotpack:
 	def CreateStage2(infile as string, compression as string) as List:
 		asm = AssemblyFactory.GetAssembly(infile)
 		kind = asm.Kind
+		name = asm.Name.Name
 		ep = asm.EntryPoint
 		hasParams = ep.Parameters != null and ep.Parameters.Count != 0
-		sizes = array [of int](4)
+		sizes = array [of int](2)
 		fp = File.OpenRead(infile)
 		data = array [of byte](fp.Length)
 		fp.Read(data, 0, data.Length)
@@ -146,18 +161,15 @@ class Dotpack:
 		sizes[0] = data.Length
 		sizes[1] = cdata.Length
 		
-		if hasParams:
-			p = '.Params'
-		else:
-			p = ''
-		asm = AssemblyFactory.GetAssembly('Obj/Stage2.' + compression + p + '.dll')
+		asm = AssemblyFactory.GetAssembly('Obj/Stage2.' + compression + '.dll')
+		asm.Name.Name = '.'
 		mod = asm.MainModule
 		for type as TypeDefinition in mod.Types:
 			if type.Name == '_':
 				asm.EntryPoint = type.Methods[0]
 		StripNames(asm)
 		
-		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 1
+		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 512
 		binary as (byte)
 		AssemblyFactory.SaveAssembly(asm, binary)
 		if compression == 'LZMA':
@@ -166,19 +178,7 @@ class Dotpack:
 			ReplaceInt(binary, 0x4AFEBAB2, LZMAProperties[2]) # Literal context bits
 			ReplaceInt(binary, 0x4AFEBAB3, LZMAProperties[1]) # Position state bits
 		
-		s2size = binary.Length
-		while binary[s2size-1] == 0:
-			s2size -= 1
-		
-		ms = MemoryStream()
-		cs = DeflateStream(ms, CompressionMode.Compress, CompressionLevel.BestCompression)
-		cs.Write(binary, 0, s2size)
-		cs.Close()
-		bdata = ms.ToArray()
-		sizes[2] = binary.Length
-		sizes[3] = bdata.Length
-		
-		return [kind, sizes, bdata, cdata]
+		return [name, kind, hasParams, sizes, binary, cdata]
 	
 	def Usage():
 		print 'dotpack.exe [infile] [outfile]'

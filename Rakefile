@@ -148,18 +148,14 @@ task :dotpack => [:obj, :cecil, :prelinker] do
 	cs 'Obj/Stage1.Deflate.exe', csflags do
 		include 'Stages/Stage1.Deflate.cs'
 	end
+	cs 'Obj/Stage1.Deflate.Params.exe', csflags + ['/define:WITHARGS'] do
+		include 'Stages/Stage1.Deflate.cs'
+	end
 	csflags = ['/o', '/nowin32manifest', '/win32res:Empty.res']
 	cs 'Obj/Stage2.Deflate.dll', csflags do
 		include 'Stages/Stage2.Deflate.cs'
 	end
 	cs 'Obj/Stage2.LZMA.dll', csflags do
-		include 'Stages/Stage2.LZMA.cs'
-	end
-	csflags += ['/define:WITHARGS']
-	cs 'Obj/Stage2.Deflate.Params.dll', csflags do
-		include 'Stages/Stage2.Deflate.cs'
-	end
-	cs 'Obj/Stage2.LZMA.Params.dll', csflags do
 		include 'Stages/Stage2.LZMA.cs'
 	end
 	

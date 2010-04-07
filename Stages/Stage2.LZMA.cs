@@ -1,6 +1,5 @@
 using System;
 using System.IO;
-using System.Reflection;
 
 namespace SevenZip.Compression.LZ
 {
@@ -444,19 +443,12 @@ namespace SevenZip.Compression.LZMA
 
 namespace _ {
 	static class _ {
-		static void S2Main(byte[] a, int s, int l, int d, string[] args) {
+		static byte[] S2Main(byte[] a, int s, int l, int d) {
 			MemoryStream i = new MemoryStream(a, s, l);
 			MemoryStream o = new MemoryStream();
 			SevenZip.Compression.LZMA.Decoder decoder = new SevenZip.Compression.LZMA.Decoder();
 			decoder.Code(i, o, l, d);
-			Assembly.Load(o.ToArray()).EntryPoint.Invoke(
-					null, 
-					new object[] {
-#if WITHARGS
-							args
-#endif
-						}
-				);
+			return o.ToArray();
 		}
 	}
 }
