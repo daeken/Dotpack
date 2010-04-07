@@ -12,14 +12,10 @@ namespace SevenZip.Compression.LZ
 		uint _streamPos = 0;
 		System.IO.Stream _stream;
 
-		public void Create(uint windowSize)
+		public void Create(uint windowSize, System.IO.Stream stream)
 		{
 			_buffer = new byte[windowSize];
 			_windowSize = windowSize;
-		}
-
-		public void Init(System.IO.Stream stream)
-		{
 			_stream = stream;
 		}
 
@@ -321,7 +317,6 @@ namespace SevenZip.Compression.LZMA
 			for (int i = 0; i < 4; i++)
 				m_PosSlotDecoder[i] = new BitTreeDecoder(6);
 			m_DictionarySize = 0x4AFEBAB0;
-			m_OutWindow.Create(Math.Max(m_DictionarySize, (1 << 12)));
 			m_LiteralDecoder.Create(0x4AFEBAB1, 0x4AFEBAB2);
 			uint numPosStates = 0x4AFEBAB3;
 			numPosStates = (uint) 1 << (int) numPosStates;
@@ -334,7 +329,7 @@ namespace SevenZip.Compression.LZMA
 			int inSize, int outSize)
 		{
 			m_RangeDecoder.Init(inStream);
-			m_OutWindow.Init(outStream);
+			m_OutWindow.Create(Math.Max(m_DictionarySize, (1 << 12)), outStream);
 
 			uint Index = 0, rep0 = 0, rep1 = 0, rep2 = 0, rep3 = 0;
 
