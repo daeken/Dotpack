@@ -139,8 +139,9 @@ namespace SevenZip.Compression.RangeCoder {
 
 			Code = 0;
 			Range = 0xFFFFFFFF;
-			for (int i = 0; i < 5; i++)
-				Code = (Code << 8) | (byte)Stream.ReadByte();
+			for (int i = 0; i < 5; i++) {
+				Code = (Code << 8) | (byte) Stream.ReadByte();
+			}
 		}
 
 		public void Decode(uint start, uint size, uint total)
@@ -160,7 +161,7 @@ namespace SevenZip.Compression.RangeCoder {
 			uint range = Range;
 			uint code = Code;
 			uint result = 0;
-			for (int i = numTotalBits; i > 0; i--)
+			while(numTotalBits-- != 0)
 			{
 				range >>= 1;
 				uint t = (code - range) >> 31;
