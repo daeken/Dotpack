@@ -25,11 +25,8 @@ namespace SevenZip.Compression.LZ
 
 		public void Flush()
 		{
-			uint size = _pos - _streamPos;
-			_stream.Write(_buffer, (int)_streamPos, (int)size);
-			if (_pos >= _windowSize)
-				_pos = 0;
-			_streamPos = _pos;
+			_stream.Write(_buffer, (int)_streamPos, (int)(_pos - _streamPos));
+			_streamPos = _pos = 0;
 		}
 
 		public byte CopyBlock(uint distance, int len)
@@ -37,16 +34,14 @@ namespace SevenZip.Compression.LZ
 			uint pos = _pos - distance - 1;
 			if (pos >= _windowSize)
 				pos += _windowSize;
-			if(len == -1)
-				return _buffer[pos];
-			while(len-- != 0) {
+			while(len-- > 0) {
 				if (pos >= _windowSize)
 					pos = 0;
 				_buffer[_pos++] = _buffer[pos++];
 				if (_pos >= _windowSize)
 					Flush();
 			}
-			return 0;
+			return _buffer[pos];
 		}
 
 		public void PutByte(byte b)
