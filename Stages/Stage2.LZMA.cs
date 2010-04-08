@@ -258,14 +258,6 @@ namespace _ {
 
 			uint nowPos64 = 0;
 			uint outSize64 = (uint)outSize;
-			/*if (nowPos64 < outSize64)
-			{
-				m_IsMatchDecoders[Index << 4].Decode(m_RangeDecoder);
-				Index = (uint) ((Index < 4) ? 0 : Index - ((Index < 10) ? 3 : 6));
-				byte b = m_LiteralDecoder.DecodeNormal(m_RangeDecoder, 0, 0);
-				PutByte(b);
-				nowPos64++;
-			}*/
 			while (nowPos64 < outSize64)
 			{
 				{
