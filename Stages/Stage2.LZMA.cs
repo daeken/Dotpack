@@ -217,7 +217,6 @@ namespace _ {
 		byte[] _buffer = null;
 		uint _pos = 0;
 		uint _windowSize = 0;
-		uint _streamPos = 0;
 		System.IO.Stream _stream;
 		Decoder m_RangeDecoder = new Decoder();
 
@@ -259,28 +258,31 @@ namespace _ {
 
 			uint nowPos64 = 0;
 			uint outSize64 = (uint)outSize;
-			if (nowPos64 < outSize64)
+			/*if (nowPos64 < outSize64)
 			{
 				m_IsMatchDecoders[Index << 4].Decode(m_RangeDecoder);
 				Index = (uint) ((Index < 4) ? 0 : Index - ((Index < 10) ? 3 : 6));
 				byte b = m_LiteralDecoder.DecodeNormal(m_RangeDecoder, 0, 0);
 				PutByte(b);
 				nowPos64++;
-			}
+			}*/
 			while (nowPos64 < outSize64)
 			{
 				{
 					uint posState = (uint)nowPos64 & m_PosStateMask;
 					if (m_IsMatchDecoders[(Index << 4) + posState].Decode(m_RangeDecoder) == 0)
 					{
-						byte b;
-						byte prevByte = CopyBlock(0, -1);
-						if (Index >= 7)
-							b = m_LiteralDecoder.DecodeWithMatchByte(m_RangeDecoder,
-								(uint)nowPos64, prevByte, CopyBlock(rep0, -1));
-						else
-							b = m_LiteralDecoder.DecodeNormal(m_RangeDecoder, (uint)nowPos64, prevByte);
-						PutByte(b);
+						byte prevByte = (nowPos64 == 0) ? (byte) 0 : CopyBlock(0, -1);
+						PutByte(
+								(Index >= 7) ? 
+									m_LiteralDecoder.DecodeWithMatchByte(
+											m_RangeDecoder, 
+											(uint)nowPos64, 
+											prevByte, 
+											CopyBlock(rep0, -1)
+										) : 
+									m_LiteralDecoder.DecodeNormal(m_RangeDecoder, (uint)nowPos64, prevByte)
+							);
 						Index = (uint) ((Index < 4) ? 0 : Index - ((Index < 10) ? 3 : 6));
 						nowPos64++;
 					}
@@ -363,8 +365,8 @@ namespace _ {
 		
 		public void Flush()
 		{
-			_stream.Write(_buffer, (int)_streamPos, (int)(_pos - _streamPos));
-			_streamPos = _pos = 0;
+			_stream.Write(_buffer, 0, (int) _pos);
+			_pos = 0;
 		}
 
 		public byte CopyBlock(uint distance, int len)
