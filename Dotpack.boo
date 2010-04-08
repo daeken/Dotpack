@@ -19,7 +19,7 @@ class Dotpack:
 			compression = 'LZMA'
 		
 		infile, outfile = args
-		name, kind, hasPArams, sizes as (int), stage2, data2 = CreateStage2(infile, compression)
+		name, kind, hasParams, sizes as (int), stage2, data2 = CreateStage2(infile, compression)
 		print 'Real assembly: {0} -> {1}' % (sizes[0], sizes[1])
 		overhead = CreateStage1(name, kind, hasParams, stage2, sizes[0], data2, outfile)
 		
