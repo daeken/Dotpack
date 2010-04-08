@@ -178,6 +178,7 @@ class Dotpack:
 			ReplaceInt(binary, 0x4AFEBAB2, LZMAProperties[2]) # Literal context bits
 			ReplaceInt(binary, 0x4AFEBAB3, 1 << cast(int, LZMAProperties[1])) # Position state bits
 			ReplaceInt(binary, 0x4AFEBAB4, (1 << cast(int, LZMAProperties[3])) - 1) # Literal position state mask
+			ReplaceInt(binary, 0x4AFEBAB5, (1 << cast(int, LZMAProperties[1])) - 1) # Position state mask
 		
 		return [name, kind, hasParams, sizes, binary, cdata]
 	

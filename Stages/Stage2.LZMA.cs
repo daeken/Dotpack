@@ -234,12 +234,10 @@ namespace _ {
 			LiteralDecoder m_LiteralDecoder = new LiteralDecoder();
 			
 			uint m_DictionarySize;
-			uint m_PosStateMask;
 			
 			for (int i = 0; i < 4; i++)
 				m_PosSlotDecoder[i] = new BitTreeDecoder(6);
 			m_DictionarySize = 0x4AFEBAB0;
-			m_PosStateMask = 0x4AFEBAB3 - 1;
 			
 			m_RangeDecoder = new Decoder(inStream);
 			_windowSize = Math.Max(m_DictionarySize, (1 << 12));
@@ -253,7 +251,7 @@ namespace _ {
 			while (nowPos64 < outSize64)
 			{
 				{
-					uint posState = (uint)nowPos64 & m_PosStateMask;
+					uint posState = (uint)nowPos64 & 0x4AFEBAB5;
 					if (m_IsMatchDecoders[(Index << 4) + posState].Decode(m_RangeDecoder) == 0)
 					{
 						byte prevByte = (nowPos64 == 0) ? (byte) 0 : CopyBlock(0, -1);
