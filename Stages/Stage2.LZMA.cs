@@ -133,18 +133,14 @@ namespace _ {
 		BitTreeDecoder[] m_LowCoder = new BitTreeDecoder[1 << 4];
 		BitTreeDecoder[] m_MidCoder = new BitTreeDecoder[1 << 4];
 		BitTreeDecoder m_HighCoder = new BitTreeDecoder(8);
-		public uint m_NumPosStates = 0;
-
+		
 		public LenDecoder()
 		{
-			uint numPosStates = 0x4AFEBAB3;
-			numPosStates = (uint) 1 << (int) numPosStates;
-			for (uint posState = m_NumPosStates; posState < numPosStates; posState++)
+			for (uint posState = 0; posState < 0x4AFEBAB3; posState++)
 			{
 				m_LowCoder[posState] = new BitTreeDecoder(3);
 				m_MidCoder[posState] = new BitTreeDecoder(3);
 			}
-			m_NumPosStates = numPosStates;
 		}
 
 		public uint Decode(Decoder rangeDecoder, uint posState)
@@ -243,7 +239,7 @@ namespace _ {
 			for (int i = 0; i < 4; i++)
 				m_PosSlotDecoder[i] = new BitTreeDecoder(6);
 			m_DictionarySize = 0x4AFEBAB0;
-			m_PosStateMask = m_LenDecoder.m_NumPosStates - 1;
+			m_PosStateMask = 0x4AFEBAB3 - 1;
 			
 			m_RangeDecoder = new Decoder(inStream);
 			_windowSize = Math.Max(m_DictionarySize, (1 << 12));
