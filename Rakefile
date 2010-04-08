@@ -144,14 +144,14 @@ task :dotpack => [:obj, :cecil, :prelinker] do
 		include '7zip/.../*.cs'
 	end
 	
-	csflags = ['/o', '/nowin32manifest', '/win32res:Small.res']
+	csflags = ['/o', '/nowin32manifest', '/win32res:Small.res', '/warn:4']
 	cs 'Obj/Stage1.Deflate.exe', csflags do
 		include 'Stages/Stage1.Deflate.cs'
 	end
 	cs 'Obj/Stage1.Deflate.Params.exe', csflags + ['/define:WITHARGS'] do
 		include 'Stages/Stage1.Deflate.cs'
 	end
-	csflags = ['/o', '/nowin32manifest', '/win32res:Empty.res']
+	csflags = ['/o', '/nowin32manifest', '/win32res:Empty.res', '/warn:4']
 	cs 'Obj/Stage2.Deflate.dll', csflags do
 		include 'Stages/Stage2.Deflate.cs'
 	end

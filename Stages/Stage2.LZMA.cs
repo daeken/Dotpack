@@ -79,9 +79,8 @@ namespace _ {
 		// public Buffer.InBuffer Stream = new Buffer.InBuffer(1 << 16);
 		public System.IO.Stream Stream;
 
-		public void Init(System.IO.Stream stream)
+		public Decoder(System.IO.Stream stream)
 		{
-			// Stream.Init(stream);
 			Stream = stream;
 
 			Code = 0;
@@ -166,15 +165,13 @@ namespace _ {
 	{
 		BitDecoder[,] m_Coders;
 		int m_NumPrevBits;
-		int m_NumPosBits;
 		uint m_PosMask;
 
 		public LiteralDecoder()
 		{
-			m_NumPosBits = 0x4AFEBAB1;
-			m_PosMask = ((uint)1 << m_NumPosBits) - 1;
+			m_PosMask = 0x4AFEBAB4;
 			m_NumPrevBits = 0x4AFEBAB2;
-			uint numStates = (uint)1 << (m_NumPrevBits + m_NumPosBits);
+			uint numStates = (uint) 1 << (m_NumPrevBits + 0x4AFEBAB1);
 			m_Coders = new BitDecoder[numStates, 0x300];
 		}
 
@@ -218,38 +215,37 @@ namespace _ {
 		uint _pos = 0;
 		uint _windowSize = 0;
 		System.IO.Stream _stream;
-		Decoder m_RangeDecoder = new Decoder();
-
-		BitDecoder[] m_IsMatchDecoders = new BitDecoder[12 << 4];
-		BitDecoder[] m_IsRepDecoders = new BitDecoder[12];
-		BitDecoder[] m_IsRepG0Decoders = new BitDecoder[12];
-		BitDecoder[] m_IsRepG1Decoders = new BitDecoder[12];
-		BitDecoder[] m_IsRepG2Decoders = new BitDecoder[12];
-		BitDecoder[] m_IsRep0LongDecoders = new BitDecoder[12 << 4];
-
-		BitTreeDecoder[] m_PosSlotDecoder = new BitTreeDecoder[4];
-		BitDecoder[] m_PosDecoders = new BitDecoder[(1 << 7) - 14];
-
-		BitTreeDecoder m_PosAlignDecoder = new BitTreeDecoder(4);
-
-		LenDecoder m_LenDecoder = new LenDecoder();
-		LenDecoder m_RepLenDecoder = new LenDecoder();
-
-		LiteralDecoder m_LiteralDecoder = new LiteralDecoder();
-
-		uint m_DictionarySize;
-
-		uint m_PosStateMask;
-
 		public LZMADecoder(System.IO.Stream inStream, System.IO.Stream outStream,
 			int inSize, int outSize)
 		{
+			Decoder m_RangeDecoder;
+			
+			BitDecoder[] m_IsMatchDecoders = new BitDecoder[12 << 4];
+			BitDecoder[] m_IsRepDecoders = new BitDecoder[12];
+			BitDecoder[] m_IsRepG0Decoders = new BitDecoder[12];
+			BitDecoder[] m_IsRepG1Decoders = new BitDecoder[12];
+			BitDecoder[] m_IsRepG2Decoders = new BitDecoder[12];
+			BitDecoder[] m_IsRep0LongDecoders = new BitDecoder[12 << 4];
+			
+			BitTreeDecoder[] m_PosSlotDecoder = new BitTreeDecoder[4];
+			BitDecoder[] m_PosDecoders = new BitDecoder[(1 << 7) - 14];
+			
+			BitTreeDecoder m_PosAlignDecoder = new BitTreeDecoder(4);
+			
+			LenDecoder m_LenDecoder = new LenDecoder();
+			LenDecoder m_RepLenDecoder = new LenDecoder();
+			
+			LiteralDecoder m_LiteralDecoder = new LiteralDecoder();
+			
+			uint m_DictionarySize;
+			uint m_PosStateMask;
+			
 			for (int i = 0; i < 4; i++)
 				m_PosSlotDecoder[i] = new BitTreeDecoder(6);
 			m_DictionarySize = 0x4AFEBAB0;
 			m_PosStateMask = m_LenDecoder.m_NumPosStates - 1;
 			
-			m_RangeDecoder.Init(inStream);
+			m_RangeDecoder = new Decoder(inStream);
 			_windowSize = Math.Max(m_DictionarySize, (1 << 12));
 			_buffer = new byte[_windowSize];
 			_stream = outStream;
@@ -334,19 +330,15 @@ namespace _ {
 											rep0 - posSlot - 1, m_RangeDecoder, numDirectBits);
 								else
 								{
-									rep0 += (m_RangeDecoder.DecodeDirectBits(
-										numDirectBits - 4) << 4);
-									rep0 += m_PosAlignDecoder.ReverseDecode(m_RangeDecoder);
+									rep0 += (m_RangeDecoder.DecodeDirectBits(numDirectBits - 4) << 4) + 
+										m_PosAlignDecoder.ReverseDecode(m_RangeDecoder);
 								}
 							}
 							else
 								rep0 = posSlot;
 						}
-						if (rep0 >= nowPos64 || rep0 >= m_DictionarySize)
-						{
-							if (rep0 == 0xFFFFFFFF)
-								break;
-						}
+						if ((rep0 >= nowPos64 || rep0 >= m_DictionarySize) && rep0 == 0xFFFFFFFF)
+							break;
 						CopyBlock(rep0, (int) len);
 						nowPos64 += len;
 					}
