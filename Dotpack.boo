@@ -1,42 +1,36 @@
 namespace Dotpack
 
+import Ionic.Zip
+import Ionic.Zlib
+import Mono.Cecil
 import SevenZip
 import SevenZip.Compression.LZMA
-import Mono.Cecil
 import System
+import System.Collections.Generic
 import System.IO
-import Ionic.Zlib
+import System.Text
+import System.Xml
 
-class Dotpack:
-	def constructor(args as (string)):
-		if args.Length != 2 and args.Length != 3:
-			Usage()
-			return
-		
-		if args.Length == 3:
-			compression = args[2]
-		else:
-			compression = 'LZMA'
-		
-		infile, outfile = args
-		name, kind, hasParams, sizes as (int), stage2, data2 = CreateStage2(infile, compression)
-		print 'Real assembly: {0} -> {1}' % (sizes[0], sizes[1])
-		overhead = CreateStage1(name, kind, hasParams, stage2, sizes[0], data2, outfile)
-		
-		total = overhead + sizes[1]
-		print 'Total size: {0} -> {1} ({2}%)' % (sizes[0], total, (cast(single, total) / sizes[0]) * 100)
-		print 'Total unpacker overhead: {0} ({1}%)' % (overhead, (cast(single, overhead) / total) * 100)
-	
-	def ReplaceInt(data as (byte), orig as int, new as int):
-		for i in range(data.Length-3):
-			if (
-					data[i] == (orig & 0xFF) and data[i+1] == ((orig >> 8) & 0xFF) and 
-					data[i+2] == ((orig >> 16) & 0xFF) and data[i+3] == (orig >> 24)
-				):
-				data[i] = new & 0xFF
-				data[i+1] = (new >> 8) & 0xFF
-				data[i+2] = (new >> 16) & 0xFF
-				data[i+3] = new >> 24
+[Boo.Lang.ExtensionAttribute]
+static def ExtractBytes(entry as ZipEntry) as (byte):
+	ms = MemoryStream()
+	entry.Extract(ms)
+	return ms.ToArray()
+
+def ReplaceInt(data as (byte), orig as int, new as int):
+	for i in range(data.Length-3):
+		if (
+				data[i] == (orig & 0xFF) and data[i+1] == ((orig >> 8) & 0xFF) and 
+				data[i+2] == ((orig >> 16) & 0xFF) and data[i+3] == (orig >> 24)
+			):
+			data[i] = new & 0xFF
+			data[i+1] = (new >> 8) & 0xFF
+			data[i+2] = (new >> 16) & 0xFF
+			data[i+3] = new >> 24
+
+abstract class Packer:
+	abstract def Pack(infile as string, outfile as string):
+		pass
 	
 	Names as Hash
 	def GetName(name as string) as string:
@@ -70,13 +64,102 @@ class Dotpack:
 		for module as ModuleDefinition in asm.Modules:
 			for type as TypeDefinition in module.Types:
 				StripType(type)
+
+class SilverlightPacker(Packer):
+	class AppManifest:
+		Doc as XmlDocument
+		
+		public EntryPointAssembly as string
+		public EntryPointType as string
+		
+		public Assemblies as Dictionary [of string, string]
+		
+		def constructor(zip as ZipFile):
+			xml = zip['AppManifest.xaml'].ExtractBytes()
+			Doc = XmlDocument()
+			Doc.Load(MemoryStream(xml))
+			
+			root = Doc.GetElementsByTagName('Deployment')[0]
+			EntryPointAssembly = root.Attributes['EntryPointAssembly'].InnerText
+			EntryPointType = root.Attributes['EntryPointType'].InnerText
+			
+			Assemblies = Dictionary [of string, string]()
+			parts = Doc.GetElementsByTagName('Deployment.Parts')[0]
+			part = parts.FirstChild
+			while part != null:
+				Assemblies[part.Attributes['x:Name'].InnerText] = part.Attributes['Source'].InnerText
+				part = part.NextSibling
 	
+	LZMAProperties = (
+			1 << 27, 1, 4, 0, 2, 128, 'bt2', false
+		)
+	
+	def Pack(infile as string, outfile as string):
+		inzip = ZipFile.Read(infile)
+		manifest = AppManifest(inzip)
+		
+		abytes = inzip[manifest.Assemblies[manifest.EntryPointAssembly]].ExtractBytes()
+		
+		inasm = AssemblyFactory.GetAssembly(abytes)
+		
+		asm = AssemblyFactory.GetAssembly('Obj/Stage1.Silverlight.LZMA.dll')
+		asm.Name.Name = inasm.Name.Name
+		
+		stage1 as (byte)
+		AssemblyFactory.SaveAssembly(asm, stage1)
+		
+		msin = MemoryStream(abytes)
+		msout = MemoryStream()
+		encoder = SevenZip.Compression.LZMA.Encoder()
+		propIDs = (
+				CoderPropID.DictionarySize,
+				CoderPropID.PosStateBits,
+				CoderPropID.LitContextBits,
+				CoderPropID.LitPosBits,
+				CoderPropID.Algorithm,
+				CoderPropID.NumFastBytes,
+				CoderPropID.MatchFinder,
+				CoderPropID.EndMarker
+			)
+		
+		encoder.SetCoderProperties(propIDs, LZMAProperties)
+		encoder.Code(msin, msout, -1, -1, null)
+		cdata = msout.ToArray()
+		
+		ReplaceInt(stage1, 0x5EADBEE0, abytes.Length)
+		ReplaceInt(stage1, 0x5EADBEE1, cdata.Length)
+		ReplaceInt(stage1, 0x4AFEBAB0, LZMAProperties[0]) # Dictionary size
+		ReplaceInt(stage1, 0x4AFEBAB1, LZMAProperties[3]) # Literal position bits
+		ReplaceInt(stage1, 0x4AFEBAB2, LZMAProperties[2]) # Literal context bits
+		ReplaceInt(stage1, 0x4AFEBAB3, 1 << cast(int, LZMAProperties[1])) # Position state bits
+		ReplaceInt(stage1, 0x4AFEBAB4, (1 << cast(int, LZMAProperties[3])) - 1) # Literal position state mask
+		ReplaceInt(stage1, 0x4AFEBAB5, (1 << cast(int, LZMAProperties[1])) - 1) # Position state mask
+		
+		#for assembly in manifest.Assemblies:
+		#	inzip.RemoveEntry(assembly.Value)
+		
+		inzip.UpdateEntry(manifest.Assemblies[manifest.EntryPointAssembly], stage1)
+		inzip.UpdateEntry('bin', cdata)
+		inzip.UpdateEntry('name', UTF8Encoding().GetBytes(manifest.EntryPointType))
+		inzip.Save(outfile)
+
+class ExecutablePacker(Packer):
+	def Pack(infile as string, outfile as string):
+		name, kind, hasParams, sizes as (int), stage2, data2 = CreateStage2(infile, 'LZMA')
+		print 'Real assembly: {0} -> {1}' % (sizes[0], sizes[1])
+		overhead = CreateStage1(name, kind, hasParams, stage2, sizes[0], data2, outfile)
+
+		total = overhead + sizes[1]
+		print 'Total size: {0} -> {1} ({2}%)' % (sizes[0], total, (cast(single, total) / sizes[0]) * 100)
+		print 'Total unpacker overhead: {0} ({1}%)' % (overhead, (cast(single, overhead) / total) * 100)
+		
 	def CreateStage1(name as string, kind as AssemblyKind, hasParams as bool, stage2 as (byte), data2Size as int, data2 as (byte), outfile as string):
 		if hasParams:
 			p = '.Params'
 		else:
 			p = ''
-		asm = AssemblyFactory.GetAssembly('Obj/Stage1.Deflate' + p + '.exe')
+		fn = 'Obj/Stage1.Deflate' + p + '.exe'
+		asm = AssemblyFactory.GetAssembly(fn)
 		asm.Name.Name = name
 		asm.Kind = kind
 		#Mono.Cecil.Binary.PEOptionalHeader.NTSpecificFieldsHeader.DefaultFileAlignment = 0x200
@@ -99,9 +182,8 @@ class Dotpack:
 		cs = DeflateStream(ms, CompressionMode.Compress, CompressionLevel.BestCompression)
 		cs.Write(stage2, start, s2size-start)
 		cs.Close()
-		orig = stage2.Length
 		stage2 = ms.ToArray()
-		print 'Stage 2 size: {0} -> {1}' % (orig, stage2.Length)
+		print 'Stage 2 size: {0} -> {1}' % (s2size, stage2.Length)
 		
 		ReplaceInt(stage1, 0x5EADBEE0, s2size)
 		ReplaceInt(stage1, 0x5EADBEE1, data2Size)
@@ -122,12 +204,12 @@ class Dotpack:
 			1 << 27, 1, 4, 0, 2, 128, 'bt2', false
 		)
 	
-	def CreateStage2(infile as string, compression as string) as List:
+	def CreateStage2(infile as string, compression as string) as Boo.Lang.List:
 		asm = AssemblyFactory.GetAssembly(infile)
 		kind = asm.Kind
 		name = asm.Name.Name
 		ep = asm.EntryPoint
-		hasParams = ep.Parameters != null and ep.Parameters.Count != 0
+		hasParams = ep != null and ep.Parameters != null and ep.Parameters.Count != 0
 		sizes = array [of int](2)
 		fp = File.OpenRead(infile)
 		data = array [of byte](fp.Length)
@@ -141,7 +223,7 @@ class Dotpack:
 		elif compression == 'LZMA':
 			msin = MemoryStream(data, 0, data.Length)
 			msout = MemoryStream()
-			encoder = Encoder()
+			encoder = SevenZip.Compression.LZMA.Encoder()
 			propIDs = (
 					CoderPropID.DictionarySize,
 					CoderPropID.PosStateBits,
@@ -181,6 +263,20 @@ class Dotpack:
 			ReplaceInt(binary, 0x4AFEBAB5, (1 << cast(int, LZMAProperties[1])) - 1) # Position state mask
 		
 		return [name, kind, hasParams, sizes, binary, cdata]
+
+class Dotpack:
+	def constructor(args as (string)):
+		if args.Length != 2:
+			Usage()
+			return
+		
+		infile, outfile = args
+		packer as Packer
+		if infile.EndsWith('.xap'):
+			packer = SilverlightPacker()
+		else:
+			packer = ExecutablePacker()
+		packer.Pack(infile, outfile)
 	
 	def Usage():
 		print 'dotpack.exe [infile] [outfile]'

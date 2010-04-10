@@ -146,10 +146,10 @@ task :dotpack => [:obj, :cecil, :prelinker] do
 	
 	csflags = ['/o', '/nowin32manifest', '/win32res:Small.res', '/warn:4']
 	cs 'Obj/Stage1.Deflate.exe', csflags do
-		include 'Stages/Stage1.Deflate.cs'
+		include 'Stages/Stage1.Executable.Deflate.cs'
 	end
 	cs 'Obj/Stage1.Deflate.Params.exe', csflags + ['/define:WITHARGS'] do
-		include 'Stages/Stage1.Deflate.cs'
+		include 'Stages/Stage1.Executable.Deflate.cs'
 	end
 	csflags = ['/o', '/nowin32manifest', '/win32res:Empty.res', '/warn:4']
 	cs 'Obj/Stage2.Deflate.dll', csflags do
@@ -157,6 +157,15 @@ task :dotpack => [:obj, :cecil, :prelinker] do
 	end
 	cs 'Obj/Stage2.LZMA.dll', csflags do
 		include 'Stages/Stage2.LZMA.cs'
+	end
+	
+	sldir = 'C:\Program Files (x86)\Microsoft Silverlight\4.0.50303.0'
+	sllibs = %w{mscorlib system System.Windows}
+	sllibs.map! {|x| '/r:' + sldir + '\\' + x + '.dll' }
+	
+	csflags += ['/nostdlib+', '/noconfig'] + sllibs
+	cs 'Obj/Stage1.Silverlight.LZMA.dll', csflags do
+		include 'Stages/Stage1.Silverlight.LZMA.cs'
 	end
 	
 	boo 'Obj/DotPack.exe' do
